@@ -1,5 +1,5 @@
-const CACHE = 'expense-tracker-v18';
-const ASSETS = ['./', './index.html', './styles.css?v=18', './enhancements.css?v=18', './supabase-config.js?v=18', './app.js?v=18', './manifest.webmanifest?v=18', './icon.svg'];
+const CACHE = 'expense-tracker-v19';
+const ASSETS = ['./', './index.html', './styles.css?v=19', './enhancements.css?v=19', './supabase-config.js?v=19', './app.js?v=19', './manifest.webmanifest?v=19', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
