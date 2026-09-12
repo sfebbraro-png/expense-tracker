@@ -61,8 +61,9 @@
     }
     return validate(state);
   }
-  function toCloud(state, template = {}) {
+  function toCloud(state, template = {}, currentMonth = template.currentMonth) {
     const result = clone(template);
+    if (typeof currentMonth === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(currentMonth)) result.currentMonth = currentMonth;
     result.cats = state.categories; result.descs = state.descriptions;
     if (state.trash !== undefined || template.trash !== undefined) result.trash = (state.trash || []).map(item => {
       const { category, description, ...rest } = item.transaction;

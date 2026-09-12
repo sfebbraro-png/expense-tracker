@@ -1,10 +1,12 @@
-const CACHE = 'expense-tracker-v21';
-const ASSETS = ['./', './index.html', './styles.css?v=21', './enhancements.css?v=21', './core.js?v=21', './recovery.js?v=21', './sync.js?v=21', './supabase-config.js?v=21', './app.js?v=21', './manifest.webmanifest?v=21', './icon.svg'];
+const CACHE = 'expense-tracker-v23';
+const ASSETS = ['./', './index.html', './styles.css?v=23', './enhancements.css?v=23', './core.js?v=23', './recovery.js?v=23', './sync.js?v=23', './supabase-config.js?v=23', './app.js?v=23', './manifest.webmanifest?v=23', './icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', event => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('expense-tracker-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('expense-tracker-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()).then(() => self.clients.matchAll({ type: 'window' })).then(clients => {
+    for (const client of clients) client.postMessage({ type: 'expense-tracker-updated', cache: CACHE });
+  }));
 });
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);

@@ -2,6 +2,13 @@
   'use strict';
   const C = typeof module !== 'undefined' ? require('./core.js') : root.ExpenseCore;
   const R = typeof module !== 'undefined' ? require('./recovery.js') : root.ExpenseRecovery;
+  const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+  function readMonth(...candidates) {
+    for (const value of candidates) {
+      if (typeof value === 'string' && monthPattern.test(value) && value >= '1900-01' && value <= '2200-12') return value;
+    }
+    return null;
+  }
   class ExpenseStore {
     constructor(storage, initial, notify = () => {}) {
       this.storage = storage; this.notify = notify; this.key = 'expense-tracker-data';
@@ -13,16 +20,29 @@
       if (raw?.trash !== undefined) { state.trash = raw.trash; C.validate(state); }
       // Transaction data is authoritative; sync metadata never supplies a second copy of it.
       this.record.state = state;
+      this.remoteTemplate = raw?.sync?.template || null;
+      // Prefer the month saved with the financial data (same durable path as transactions).
+      // Do not seed from the last cloud template here; sync adopts it only when unset.
+      this.currentMonth = readMonth(raw?.currentMonth, raw?.sync?.currentMonth);
       this.user = null; this.busy = false; this.review = null; this.epoch = 0;
     }
     get state() { return this.record.state; }
     persist(next) {
       if (this.storage.getItem(this.key) !== this.raw) throw new Error('Another tab changed the data. Reload this tab before saving; your form is still open.');
       if (this.remoteTemplate) next = { ...next, template: this.remoteTemplate };
+      if (this.currentMonth) next = { ...next, currentMonth: this.currentMonth };
       const { state, ...sync } = next;
-      const raw = JSON.stringify({ ...state, version: 2, sync });
+      const raw = JSON.stringify({ ...state, version: 2, currentMonth: this.currentMonth || undefined, sync });
       this.storage.setItem(this.key, raw);
       this.raw = raw; this.record = next;
+    }
+    persistMonth(month) {
+      const next = readMonth(month);
+      if (!next) return;
+      this.currentMonth = next;
+      if (this.remoteTemplate) this.remoteTemplate = { ...C.clone(this.remoteTemplate), currentMonth: next };
+      // Month is shared with the Mac app via currentMonth; mark dirty so a signed-in device uploads it.
+      this.persist({ ...this.record, dirty: this.record.dirty || !!this.record.base || !!this.user });
     }
     commit(change) {
       if (this.user && this.record.owner && this.user !== this.record.owner) throw new Error('Sign back into the account that owns this device’s pending data.');
@@ -96,6 +116,12 @@
           if (!row) { this.notify('No shared data yet. Open the Mac app to initialize sync.', true); return; }
           const remote = C.fromCloud(row.data);
           this.remoteTemplate = row.data;
+          // Keep this device's viewing month. Never adopt a shared month older than this calendar month.
+          if (!this.currentMonth) {
+            const today = C.localDate().slice(0, 7);
+            const remoteMonth = readMonth(row.data.currentMonth);
+            this.currentMonth = remoteMonth && remoteMonth >= today ? remoteMonth : today;
+          }
           if (!this.record.base && this.record.dirty && !C.equal(this.state, remote)) {
             this.review = { initial: true, remote, row, conflicts: [] };
             this.notify('Review first sync', true); return;
@@ -109,19 +135,20 @@
             this.review = { remote, row, conflicts: merged.conflicts };
             this.notify('Conflicting changes need review', true); return;
           }
-          if (C.equal(merged.state, remote)) {
+          const remoteMonth = readMonth(row.data.currentMonth);
+          if (C.equal(merged.state, remote) && this.currentMonth === remoteMonth) {
             this.persist({ ...this.record, state: remote, base: remote, dirty: false, owner: user, lastSynced: new Date().toISOString() });
             this.notify('Synced'); return;
           }
           // Persist the merged copy before sending. A crash or network error leaves a durable retry.
           this.persist({ ...this.record, state: merged.state, base: remote, dirty: true, owner: user });
           const sent = C.clone(this.state);
-          const success = await backend.compareAndSwap(user, row, C.toCloud(sent, row.data));
+          const success = await backend.compareAndSwap(user, row, C.toCloud(sent, row.data, this.currentMonth));
           if (!current()) return;
           if (!success) continue; // Another device saved first; read and merge again.
-          const dirty = !C.equal(this.state, sent);
-          this.persist({ ...this.record, base: sent, dirty, lastSynced: new Date().toISOString() });
-          if (!dirty) { this.notify('Synced'); return; }
+          this.remoteTemplate = C.toCloud(sent, row.data, this.currentMonth);
+          this.persist({ ...this.record, base: sent, dirty: !C.equal(this.state, sent), lastSynced: new Date().toISOString() });
+          if (!this.record.dirty) { this.notify('Synced'); return; }
         }
         if (current()) this.notify('Shared data is busy. Changes saved on this device; retry shortly.', true);
       } catch (error) {

@@ -12,11 +12,23 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':
 const rowExpenses = t => t.hh + t.stv + t.jyn;
 const monthName = month => new Date(`${month}-02T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 const fmtDate = date => new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-let activeMonth = C.localDate().slice(0, 7);
-try {
-  const savedMonth = localStorage.getItem('expense-tracker-month');
-  if (/^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/.test(savedMonth)) activeMonth = savedMonth;
-} catch { /* Transaction storage failures are handled below. */ }
+const monthPattern = /^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/;
+function readLocalMonth() {
+  try {
+    const saved = localStorage.getItem('expense-tracker-month');
+    if (monthPattern.test(saved)) return saved;
+  } catch { /* Transaction storage failures are handled below. */ }
+  return null;
+}
+// Past months in storage/cloud (often July from an old shared copy) must not reopen after a full quit.
+function resolveOpeningMonth(...candidates) {
+  const today = C.localDate().slice(0, 7);
+  for (const value of candidates) {
+    if (typeof value === 'string' && monthPattern.test(value) && value >= today) return value;
+  }
+  return today;
+}
+let activeMonth = resolveOpeningMonth(readLocalMonth());
 let store, cloud = null, cloudUser = null, cloudPoll = null, cloudChannel = null;
 let editingCategory = null, editingDescription = null, editingSnapshot = null, showAll = false, descriptionFilter = '';
 let syncMessage = 'Saved on this device', syncError = false;
@@ -30,6 +42,13 @@ try {
   $('#syncStatus').textContent = error.message;
   $('#syncStatus').classList.add('error');
   $$('button, input, select').forEach(el => el.disabled = true);
+}
+if (store) {
+  activeMonth = resolveOpeningMonth(store.currentMonth, readLocalMonth());
+  if (store.currentMonth !== activeMonth) {
+    try { store.persistMonth(activeMonth); } catch { /* Viewing still works. */ }
+  }
+  try { localStorage.setItem('expense-tracker-month', activeMonth); } catch { /* Viewing still works. */ }
 }
 function state() { return store.state; }
 function total(transactions) {
@@ -47,7 +66,9 @@ function setMonth(month) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month < '1900-01' || month > '2200-12') return;
   activeMonth = month; showAll = false;
   try { localStorage.setItem('expense-tracker-month', month); } catch { /* Viewing still works. */ }
+  try { store.persistMonth(month); } catch { /* Viewing still works. */ }
   render();
+  void syncCloud();
 }
 function render() {
   $('#monthButton').innerHTML = `${monthName(activeMonth)} <span>⌄</span>`;
@@ -184,6 +205,7 @@ const backend = {
 async function syncCloud() {
   if (!store || !cloud) return;
   await store.sync(backend);
+  activeMonth = resolveOpeningMonth(store.currentMonth, activeMonth);
   render();
 }
 function conflictValue(value) {
@@ -309,7 +331,17 @@ if (store) {
   window.addEventListener('storage', event => {
     if (event.key === store.key) { syncMessage = 'Another tab changed the data. Reload before editing or syncing.'; syncError = true; renderSync(); }
   });
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+    // An older shell (for example v19) can keep serving until the new worker takes over.
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
+    navigator.serviceWorker.ready.then(reg => reg.update()).catch(() => {});
+  }
   render(); showView('dashboard'); void initCloud();
 }
 
