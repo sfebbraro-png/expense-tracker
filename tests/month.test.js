@@ -106,6 +106,7 @@ test('demo seed data yields to the shared Mac copy without a first-sync review',
   assert.equal(reopened.record.dirty, false);
 });
 
+test('toCloud records the active viewing month without dropping other template fields', () => {
   const encoded = C.toCloud({ transactions: [], categories: ['Household'], descriptions: [] }, {
     custom: 'keep', currentMonth: '2026-07', months: { '2026-07': { budget: 80, txs: [] } }
   }, '2026-09');
