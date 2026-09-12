@@ -46,9 +46,9 @@ try {
 if (store) {
   activeMonth = resolveOpeningMonth(store.currentMonth, readLocalMonth());
   if (store.currentMonth !== activeMonth) {
+    try { localStorage.setItem('expense-tracker-month', activeMonth); } catch { /* Viewing still works. */ }
     try { store.persistMonth(activeMonth); } catch { /* Viewing still works. */ }
   }
-  try { localStorage.setItem('expense-tracker-month', activeMonth); } catch { /* Viewing still works. */ }
 }
 function state() { return store.state; }
 function total(transactions) {

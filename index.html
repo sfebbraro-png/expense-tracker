@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Expenses" />
-  <link rel="manifest" href="manifest.webmanifest?v=23" />
+  <link rel="manifest" href="manifest.webmanifest?v=24" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="styles.css?v=23" />
-  <link rel="stylesheet" href="enhancements.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
+  <link rel="stylesheet" href="enhancements.css?v=24" />
   <title>Expense Tracker</title>
 </head>
 <body>
@@ -25,7 +25,7 @@
     </header>
     <div class="account-strip">
       <span id="syncStatus" class="sync-status" role="status" aria-live="polite">Saved on this device</span>
-      <div class="header-actions"><span id="appVersion" class="app-version">v23</span><button id="reviewSyncButton" class="text-button hidden">Review changes</button><button id="syncButton" class="text-button hidden">Retry sync</button><button id="accountButton" class="text-button">Sign In</button></div>
+      <div class="header-actions"><span id="appVersion" class="app-version">v24</span><button id="reviewSyncButton" class="text-button hidden">Review changes</button><button id="syncButton" class="text-button hidden">Retry sync</button><button id="accountButton" class="text-button">Sign In</button></div>
     </div>
 
 
@@ -111,11 +111,11 @@
   <dialog id="authDialog" class="app-dialog small-dialog"><form id="authForm"><div class="dialog-header"><h2>Sync Expense Tracker</h2><button type="button" class="close-button" aria-label="Close dialog" data-close>×</button></div><p class="helper">Sign in with the same account you use on your Mac.</p><label>Email<input id="authEmail" type="email" autocomplete="email" required /></label><label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required /></label><p id="authMessage" class="auth-message"></p><div class="form-actions"><button id="createAccountButton" type="button" class="secondary-button">Create Account</button><button class="primary-button">Sign In</button></div></form></dialog>
   <dialog id="restoreDialog" class="app-dialog"><form id="restoreForm"><div class="dialog-header"><h2>Restore preview</h2><button type="button" class="close-button" aria-label="Close restore preview" data-close>×</button></div><div id="restoreSummary"></div><label class="review-choice"><input type="radio" name="restoreMode" value="merge" checked /> Add missing entries. Keep current versions and deleted entries as they are.</label><label class="review-choice"><input type="radio" name="restoreMode" value="replace" /> Replace current transactions, lists, and Trash with this backup.</label><p class="helper">A recovery copy is saved first. Restored changes will sync to your account.</p><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Restore</button></div></form></dialog>
   <dialog id="syncReviewDialog" class="app-dialog"><form id="syncReviewForm"><div class="dialog-header"><h2>Review shared changes</h2><button type="button" class="close-button" aria-label="Close sync review" data-close>×</button></div><p class="helper">Your pending changes stay on this device until this is resolved. A local recovery copy is kept before applying your choices.</p><div id="syncReviewContent"></div><div class="form-actions"><button type="button" class="secondary-button" data-close>Later</button><button class="primary-button">Apply choices</button></div></form></dialog>
-  <script src="core.js?v=23"></script>
-  <script src="recovery.js?v=23"></script>
-  <script src="sync.js?v=23"></script>
+  <script src="core.js?v=24"></script>
+  <script src="recovery.js?v=24"></script>
+  <script src="sync.js?v=24"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=23"></script>
-  <script src="app.js?v=23"></script>
+  <script src="supabase-config.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

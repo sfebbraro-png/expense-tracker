@@ -9,6 +9,9 @@
     }
     return null;
   }
+  function isDemoSeed(state) {
+    return !state.transactions.length || state.transactions.every(t => String(t.id || '').startsWith('seed-'));
+  }
   class ExpenseStore {
     constructor(storage, initial, notify = () => {}) {
       this.storage = storage; this.notify = notify; this.key = 'expense-tracker-data';
@@ -41,7 +44,8 @@
       if (!next) return;
       this.currentMonth = next;
       if (this.remoteTemplate) this.remoteTemplate = { ...C.clone(this.remoteTemplate), currentMonth: next };
-      // Month is shared with the Mac app via currentMonth; mark dirty so a signed-in device uploads it.
+      // Do not create a first-run pending file from demo seed data. That blocks Mac sync behind a review.
+      if (!this.raw && !this.user) return;
       this.persist({ ...this.record, dirty: this.record.dirty || !!this.record.base || !!this.user });
     }
     commit(change) {
@@ -123,6 +127,11 @@
             this.currentMonth = remoteMonth && remoteMonth >= today ? remoteMonth : today;
           }
           if (!this.record.base && this.record.dirty && !C.equal(this.state, remote)) {
+            // Demo seed or an empty phone install is not real pending work. Take the Mac/shared copy.
+            if (isDemoSeed(this.state)) {
+              this.persist({ ...this.record, state: remote, base: remote, dirty: false, owner: user, lastSynced: new Date().toISOString() });
+              this.notify('Synced'); return;
+            }
             this.review = { initial: true, remote, row, conflicts: [] };
             this.notify('Review first sync', true); return;
           }

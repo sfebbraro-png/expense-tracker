@@ -85,7 +85,27 @@ test('sync keeps the phone on its selected month and uploads that month with sha
   assert.equal(JSON.parse(items.get('expense-tracker-data')).currentMonth, today);
 });
 
-test('toCloud records the active viewing month without dropping other template fields', () => {
+test('demo seed data yields to the shared Mac copy without a first-sync review', async () => {
+  const items = new Map();
+  const storage = { getItem: key => items.get(key) ?? null, setItem: (key, value) => items.set(key, value) };
+  const seed = [{ id: 'seed-0', date: '2026-07-02', category: 'Household', description: 'Mortgage', hh: 10, jyn: 0, stv: 0, inc: 0 }];
+  const store = new ExpenseStore(storage, { transactions: seed, categories: ['Household'], descriptions: ['Mortgage'] });
+  storage.setItem('expense-tracker-data', JSON.stringify({ version: 2, transactions: seed, categories: ['Household'], descriptions: ['Mortgage'] }));
+  const reopened = new ExpenseStore(storage, { transactions: [], categories: ['Household'], descriptions: [] });
+  reopened.connect('user');
+  const remote = {
+    cats: ['Household'], descs: ['Groceries'], currentMonth: '2026-09',
+    months: { '2026-09': { txs: [{ id: 'mac-1', date: '2026-09-01', cat: 'Household', desc: 'Groceries', hh: 42, jyn: 0, stv: 0, inc: 0 }] } }
+  };
+  await reopened.sync({
+    async read() { return { data: remote, updated_at: '1' }; },
+    async compareAndSwap() { throw new Error('seed data should not upload over Mac data'); }
+  });
+  assert.equal(reopened.review, null);
+  assert.equal(reopened.state.transactions.map(t => t.id).join(), 'mac-1');
+  assert.equal(reopened.record.dirty, false);
+});
+
   const encoded = C.toCloud({ transactions: [], categories: ['Household'], descriptions: [] }, {
     custom: 'keep', currentMonth: '2026-07', months: { '2026-07': { budget: 80, txs: [] } }
   }, '2026-09');
