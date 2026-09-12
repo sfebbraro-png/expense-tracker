@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Expenses" />
-  <link rel="manifest" href="manifest.webmanifest?v=19" />
+  <link rel="manifest" href="manifest.webmanifest?v=21" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="styles.css?v=19" />
-  <link rel="stylesheet" href="enhancements.css?v=19" />
+  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="enhancements.css?v=21" />
   <title>Expense Tracker</title>
 </head>
 <body>
@@ -18,56 +18,44 @@
     <header class="topbar">
       <div class="month-switcher" aria-label="Select month">
         <button id="previousMonth" class="icon-button" aria-label="Previous month">‹</button>
-        <button id="monthButton" class="month-title">July 2026 <span>⌄</span></button>
+        <button id="monthButton" class="month-title" aria-expanded="false" aria-controls="monthPicker">Select month <span>⌄</span></button>
         <button id="nextMonth" class="icon-button" aria-label="Next month">›</button>
       </div>
-      <div class="header-actions"><span id="syncStatus" class="sync-status">v19</span><button id="syncButton" class="account-button" title="Refresh shared data">Sync</button><button id="accountButton" class="account-button">Sign In</button><button id="addButton" class="add-top">＋ <span>Add</span></button></div>
+      <button id="addButton" class="add-top">＋ <span>Add</span></button>
     </header>
+    <div class="account-strip">
+      <span id="syncStatus" class="sync-status" role="status" aria-live="polite">Saved on this device</span>
+      <div class="header-actions"><button id="reviewSyncButton" class="text-button hidden">Review changes</button><button id="syncButton" class="text-button hidden">Retry sync</button><button id="accountButton" class="text-button">Sign In</button></div>
+    </div>
+
 
     <section class="content">
-      <div id="monthPicker" class="month-picker hidden"></div>
+      <div id="monthPicker" class="month-picker hidden"><label>Jump to month<input id="monthInput" type="month" min="1900-01" max="2200-12" /></label><button id="thisMonthButton" class="secondary-button">This month</button><button id="closeMonthPicker" class="text-button">Done</button></div>
       <nav class="tabs" aria-label="Main navigation">
         <button class="tab active" data-view="dashboard">Overview</button>
         <button class="tab" data-view="transactions">Transactions</button>
-        <button class="tab" data-view="manage">Manage Lists</button>
+        <button class="tab" data-view="manage">Lists</button><button class="tab" data-view="recovery">Recovery</button>
       </nav>
 
       <section id="dashboardView" class="view active">
-        <section class="panel summary-panel">
-          <p class="eyebrow">EXPENSE SUMMARY</p>
-          <div class="summary-rows">
-            <div class="summary-row big"><span>Total Expenses</span><strong id="totalExpenses" class="neg">$0.00</strong></div>
-            <div class="summary-row"><span>Household Expenses</span><strong id="householdExpenses">$0.00</strong></div>
-            <div class="summary-row"><span>Steve Personal Expenses</span><strong id="stevePersonalExpenses">$0.00</strong></div>
-            <div class="summary-row"><span>Jayne Personal Expenses</span><strong id="jaynePersonalExpenses">$0.00</strong></div>
-            <div class="summary-row"><span>Steve % of Total</span><strong id="stevePctTotal" class="warn">0.00%</strong></div>
-            <div class="summary-row"><span>Jayne % of Total</span><strong id="jaynePctTotal" class="warn">0.00%</strong></div>
+        <section class="panel balance-panel" aria-label="Monthly summary">
+          <p class="eyebrow">THIS MONTH AT A GLANCE</p>
+          <div class="balance-heading"><div><span id="balanceLabel">Remaining</span><strong id="remainingTotal">$0.00</strong></div><span id="spendingCaption" class="balance-caption"></span></div>
+          <p class="balance-note">Income minus recorded expenses</p>
+          <div class="cashflow-grid"><div><span>Income</span><strong id="totalIncome">$0.00</strong></div><div><span>Expenses</span><strong id="totalExpenses">$0.00</strong></div></div>
+        </section>
+        <section class="people-section" aria-label="Expense allocation"><div class="section-heading"><h2>Who spent what</h2><span>View transactions →</span></div>
+          <div class="person-grid">
+            <button class="person-card household" data-person="hh"><span>Household</span><strong id="householdTotal">$0.00</strong><small id="householdShare"></small></button>
+            <button class="person-card steve" data-person="stv"><span>Steve</span><strong id="steveTotal">$0.00</strong><small id="steveShare"></small></button>
+            <button class="person-card jayne" data-person="jyn"><span>Jayne</span><strong id="jayneTotal">$0.00</strong><small id="jayneShare"></small></button>
           </div>
         </section>
-
-        <section class="panel summary-panel">
-          <p class="eyebrow">INCOME SUMMARY</p>
-          <div class="summary-rows">
-            <div class="summary-row big"><span>Total Income</span><strong id="totalIncome" class="pos">$0.00</strong></div>
-            <div class="summary-row"><span>Household Spending % of Income</span><strong id="householdPctIncome" class="neg">0.00%</strong></div>
-            <div class="summary-row"><span>Steve Spending % of Income</span><strong id="stevePctIncome" class="warn">0.00%</strong></div>
-            <div class="summary-row"><span>Jayne Spending % of Income</span><strong id="jaynePctIncome" class="warn">0.00%</strong></div>
-            <div class="summary-row"><span>Total Spending % of Income</span><strong id="totalPctIncome" class="neg">0.00%</strong></div>
-          </div>
-        </section>
-
-        <div class="person-grid">
-          <article class="person-card household"><p>Household</p><strong id="householdTotal">$0.00</strong></article>
-          <article class="person-card steve"><p>Steve</p><strong id="steveTotal">$0.00</strong></article>
-          <article class="person-card jayne"><p>Jayne</p><strong id="jayneTotal">$0.00</strong></article>
-        </div>
-
+        <details class="panel ratios-panel"><summary>Spending as a share of income</summary><div id="incomeRatios" class="summary-rows"></div></details>
         <section class="panel breakdown-panel">
-          <div class="panel-heading"><div><p class="eyebrow">SPENDING BY DESCRIPTION</p></div><span id="categoryCount" class="pill">0 descriptions</span></div>
-          <div class="chart-and-list">
-            <div class="donut-wrap"><div id="donut" class="donut"><div class="donut-center"><span>Total</span><strong id="donutTotal">$0</strong><em id="donutPct" class="donut-pct hidden"></em></div></div></div>
-            <div id="categoryList" class="category-list"></div>
-          </div>
+          <div class="panel-heading"><div><p class="eyebrow">WHERE IT WENT</p><h2>Spending breakdown</h2></div><span id="categoryCount" class="pill">0 descriptions</span></div>
+          <p class="helper">Largest expenses first. Select a description to see its transactions.</p>
+          <div id="categoryList" class="category-list"></div>
           <button id="viewAllCategories" class="view-all-button hidden">View all descriptions</button>
         </section>
 
@@ -75,33 +63,59 @@
       </section>
 
       <section id="transactionsView" class="view">
-        <section class="panel transaction-panel"><div class="panel-heading"><div><p class="eyebrow">TRANSACTIONS</p><h2 id="transactionTitle">July 2026 Transactions</h2></div><button id="addTransactionButton" class="primary-button">＋ Add Transaction</button></div><div id="transactionsList" class="transactions-list"></div></section>
+        <section class="panel transaction-panel">
+          <div class="panel-heading"><div><p class="eyebrow">TRANSACTIONS</p><h2 id="transactionTitle">Transactions</h2></div></div>
+          <div class="search-controls">
+            <label class="search-label">Search transactions<input id="transactionSearch" type="search" placeholder="Description, category, date, or amount" /></label>
+            <div class="filter-grid">
+              <label>Period<select id="searchScope"><option value="month">Selected month</option><option value="all">All months</option></select></label>
+              <label>Allocation<select id="personFilter"><option value="">All allocations</option><option value="hh">Household</option><option value="stv">Steve</option><option value="jyn">Jayne</option><option value="inc">Income</option></select></label>
+              <label>Category<select id="categoryFilter"><option value="">All categories</option></select></label>
+              <label>Order<select id="transactionSort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+            </div>
+            <div class="filter-footer"><span id="descriptionFilterLabel"></span><button id="clearFilters" class="text-button">Clear filters</button></div>
+            <p id="searchSummary" class="search-summary" role="status" aria-live="polite"></p>
+          </div>
+          <div id="transactionsList" class="transactions-list"></div>
+        </section>
+      </section>
+
+      <section id="recoveryView" class="view">
+        <section class="panel"><p class="eyebrow">KEEP A COPY</p><h2>Backup &amp; export</h2><p class="helper">JSON backups include all months, lists, and Trash. CSV includes active transactions from all months. Exports stay on your device.</p><div class="recovery-actions"><button id="downloadBackup" class="primary-button">Download backup</button><button id="exportCsv" class="secondary-button">Export CSV</button><button id="chooseBackup" class="secondary-button">Restore a backup…</button></div><input id="backupFile" class="hidden" type="file" accept=".json,application/json" /><p id="recoveryStatus" role="status" aria-live="polite"></p></section>
+        <section class="panel"><p class="eyebrow">BEFORE A CHANGE</p><h2>Recovery copies</h2><p class="helper">Copies saved before a restore or sync review. Download one to keep it outside this browser.</p><div id="recoveryCopies"></div></section>
+        <section class="panel"><div class="panel-heading"><div><p class="eyebrow">DELETED TRANSACTIONS</p><h2>Trash</h2></div><span id="trashCount" class="pill"></span></div><p class="helper">Deleted entries stay here until you restore them. Trash syncs between updated clients and is excluded from spending totals.</p><div id="trashList"></div></section>
       </section>
 
       <section id="manageView" class="view">
-        <section class="panel lists-panel"><div class="panel-heading"><div><p class="eyebrow">MANAGE LISTS</p><h2>Categories</h2></div><button id="addCategoryButton" class="text-button">＋ Add</button></div><p class="helper">Categories are available in the add-transaction form. Renaming a category updates its existing transactions.</p><div id="manageCategories" class="manage-list"></div></section>
-        <section class="panel lists-panel"><div class="panel-heading"><div><p class="eyebrow">MANAGE LISTS</p><h2>Descriptions</h2></div><button id="addDescriptionButton" class="text-button">＋ Add</button></div><p class="helper">Descriptions are used for the spending breakdown and are available in the add-transaction form.</p><div id="manageDescriptions" class="manage-list"></div></section>
+        <section class="panel lists-panel"><div class="panel-heading"><div><p class="eyebrow">MANAGE LISTS</p><h2>Categories</h2></div><button id="addCategoryButton" class="text-button">＋ Add</button></div><p class="helper">Categories are available in the add-transaction form. Renaming updates existing transactions after confirmation. Only unused categories can be deleted.</p><div id="manageCategories" class="manage-list"></div></section>
+        <section class="panel lists-panel"><div class="panel-heading"><div><p class="eyebrow">MANAGE LISTS</p><h2>Descriptions</h2></div><button id="addDescriptionButton" class="text-button">＋ Add</button></div><p class="helper">Descriptions group spending. Renaming updates existing transactions after confirmation. Only unused descriptions can be deleted.</p><div id="manageDescriptions" class="manage-list"></div></section>
       </section>
     </section>
   </main>
 
-  <button id="floatingAdd" class="floating-add" aria-label="Add Transaction">＋</button>
+
 
   <dialog id="transactionDialog" class="app-dialog"><form id="transactionForm" method="dialog">
-    <div class="dialog-header"><h2 id="formTitle">Add Transaction</h2><button type="button" class="close-button" data-close>×</button></div>
+    <div class="dialog-header"><h2 id="formTitle">Add Transaction</h2><button type="button" class="close-button" aria-label="Close dialog" data-close>×</button></div>
     <input id="transactionId" type="hidden" />
     <label>Date<input id="dateInput" type="date" required /></label>
     <div class="form-grid"><label>Category<select id="categoryInput" required></select></label><label>Description<select id="descriptionSelect" required></select></label></div>
+    <p id="entryDateNote" class="helper"></p>
     <p class="split-note">Enter any combination of amounts for this transaction.</p>
     <div class="split-grid"><label>Household $<input id="householdInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /></label><label>Jayne $<input id="jayneInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /></label><label>Steve $<input id="steveInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /></label><label>Income $<input id="incomeInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /></label></div>
     <div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button" value="default">Save</button></div>
   </form></dialog>
 
-  <dialog id="categoryDialog" class="app-dialog small-dialog"><form id="categoryForm" method="dialog"><div class="dialog-header"><h2 id="categoryDialogTitle">Add Category</h2><button type="button" class="close-button" data-close>×</button></div><label>Name<input id="categoryNameInput" type="text" maxlength="40" required placeholder="e.g. Household" /></label><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button id="categorySaveButton" class="primary-button">Add</button></div></form></dialog>
-  <dialog id="descriptionDialog" class="app-dialog small-dialog"><form id="descriptionForm" method="dialog"><div class="dialog-header"><h2 id="descriptionDialogTitle">Add Description</h2><button type="button" class="close-button" data-close>×</button></div><label>Name<input id="descriptionNameInput" type="text" maxlength="40" required placeholder="e.g. Groceries" /></label><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button id="descriptionSaveButton" class="primary-button">Add</button></div></form></dialog>
-  <dialog id="authDialog" class="app-dialog small-dialog"><form id="authForm"><div class="dialog-header"><h2>Sync Expense Tracker</h2><button type="button" class="close-button" data-close>×</button></div><p class="helper">Sign in with the same account you use on your Mac.</p><label>Email<input id="authEmail" type="email" autocomplete="email" required /></label><label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required /></label><p id="authMessage" class="auth-message"></p><div class="form-actions"><button id="createAccountButton" type="button" class="secondary-button">Create Account</button><button class="primary-button">Sign In</button></div></form></dialog>
+  <dialog id="categoryDialog" class="app-dialog small-dialog"><form id="categoryForm" method="dialog"><div class="dialog-header"><h2 id="categoryDialogTitle">Add Category</h2><button type="button" class="close-button" aria-label="Close dialog" data-close>×</button></div><label>Name<input id="categoryNameInput" type="text" maxlength="40" required placeholder="e.g. Household" /></label><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button id="categorySaveButton" class="primary-button">Add</button></div></form></dialog>
+  <dialog id="descriptionDialog" class="app-dialog small-dialog"><form id="descriptionForm" method="dialog"><div class="dialog-header"><h2 id="descriptionDialogTitle">Add Description</h2><button type="button" class="close-button" aria-label="Close dialog" data-close>×</button></div><label>Name<input id="descriptionNameInput" type="text" maxlength="40" required placeholder="e.g. Groceries" /></label><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button id="descriptionSaveButton" class="primary-button">Add</button></div></form></dialog>
+  <dialog id="authDialog" class="app-dialog small-dialog"><form id="authForm"><div class="dialog-header"><h2>Sync Expense Tracker</h2><button type="button" class="close-button" aria-label="Close dialog" data-close>×</button></div><p class="helper">Sign in with the same account you use on your Mac.</p><label>Email<input id="authEmail" type="email" autocomplete="email" required /></label><label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required /></label><p id="authMessage" class="auth-message"></p><div class="form-actions"><button id="createAccountButton" type="button" class="secondary-button">Create Account</button><button class="primary-button">Sign In</button></div></form></dialog>
+  <dialog id="restoreDialog" class="app-dialog"><form id="restoreForm"><div class="dialog-header"><h2>Restore preview</h2><button type="button" class="close-button" aria-label="Close restore preview" data-close>×</button></div><div id="restoreSummary"></div><label class="review-choice"><input type="radio" name="restoreMode" value="merge" checked /> Add missing entries. Keep current versions and deleted entries as they are.</label><label class="review-choice"><input type="radio" name="restoreMode" value="replace" /> Replace current transactions, lists, and Trash with this backup.</label><p class="helper">A recovery copy is saved first. Restored changes will sync to your account.</p><div class="form-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button class="primary-button">Restore</button></div></form></dialog>
+  <dialog id="syncReviewDialog" class="app-dialog"><form id="syncReviewForm"><div class="dialog-header"><h2>Review shared changes</h2><button type="button" class="close-button" aria-label="Close sync review" data-close>×</button></div><p class="helper">Your pending changes stay on this device until this is resolved. A local recovery copy is kept before applying your choices.</p><div id="syncReviewContent"></div><div class="form-actions"><button type="button" class="secondary-button" data-close>Later</button><button class="primary-button">Apply choices</button></div></form></dialog>
+  <script src="core.js?v=21"></script>
+  <script src="recovery.js?v=21"></script>
+  <script src="sync.js?v=21"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="supabase-config.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

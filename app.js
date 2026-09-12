@@ -1,36 +1,371 @@
 const COLORS=['#2563eb','#16a34a','#dc2626','#d97706','#9333ea','#0891b2','#db2777','#65a30d','#ea580c','#7c3aed','#0d9488','#b45309','#475569','#1d4ed8','#15803d'];
 const DEFAULT_DESCRIPTIONS=['Amazon Prime','Car Insurance','Cox Cable','Eating Out','Groceries','Mortgage','Netflix','Pharmacy','Subscriptions','Tithe','Transfer To Savings','Wedding','PIN'];
 const seed=[['2026-07-02','Household','Transfer',3323.45,'inc'],['2026-07-02','Household','Subscriptions',20,'stv'],['2026-07-02','Household','Pharmacy',98,'hh'],['2026-07-02','Household','Amazon Prime',4.99,'stv'],['2026-07-02','Household',"Jayne's Salary",880.20,'inc'],['2026-07-02','Household','Car Insurance',237.08,'hh'],['2026-07-02','Household','Mortgage',1746.56,'hh'],['2026-07-03','Household','Eating Out',13.98,'hh'],['2026-07-03','Personal','PIN',104.37,'jyn'],['2026-07-03','Household','Eating Out',21.60,'hh'],['2026-07-03','Household','Subscriptions',8.99,'stv'],['2026-07-04','Household','Tithe',188,'hh'],['2026-07-05','Household',"Sophi's Wedding",27.52,'hh'],['2026-07-05','Household',"Sophi's Wedding",40.58,'hh'],['2026-07-05','Household',"Sophi's Wedding",54.10,'hh'],['2026-07-05','Household',"Sophi's Wedding",401.50,'hh'],['2026-07-06','Personal','Eating Out',6.76,'jyn'],['2026-07-06','Household','Transfer To Savings',100,'hh'],['2026-07-06','Household','Cox Cable',24.14,'hh'],['2026-07-06','Household','Groceries',3.57,'hh'],['2026-07-06','Household','Netflix',19.99,'hh']].map((x,i)=>({id:`seed-${i}`,date:x[0],category:x[1],description:x[2],hh:x[4]==='hh'?x[3]:0,jyn:x[4]==='jyn'?x[3]:0,stv:x[4]==='stv'?x[3]:0,inc:x[4]==='inc'?x[3]:0}));
-const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
-let state=loadState(),activeMonth='2026-07',showAllCategories=false,selectedCategory=null,editingCategory=null,editingDescription=null;
-let cloud=null,cloudUser=null,cloudReady=false,cloudPoll=null,cloudWriting=false,cloudChannel=null,cloudRevision=0,cloudQueued=false,lastCloudUpdatedAt=null;
-function number(v){return Number(v)||0}function normalize(t){if('hh'in t)return {...t,hh:number(t.hh),jyn:number(t.jyn),stv:number(t.stv),inc:number(t.inc),category:t.category||'Household',description:t.description||t.desc||''};const n=number(t.amount),personal=['Steve','Jayne'].includes(t.person);return {id:t.id,date:t.date,category:personal?'Personal':'Household',description:t.description||'',hh:t.type==='expense'&&t.person==='Household'?n:0,jyn:t.type==='expense'&&t.person==='Jayne'?n:0,stv:t.type==='expense'&&t.person==='Steve'?n:0,inc:t.type==='income'?n:0}}
-function loadState(){try{const raw=JSON.parse(localStorage.getItem('expense-tracker-data'));if(raw?.transactions){const descriptions=[...new Set([...(raw.descriptions||raw.categories||[]),...raw.transactions.map(t=>t.description).filter(Boolean),...DEFAULT_DESCRIPTIONS])];const categories=raw.version>=2?(raw.categories||['Household','Personal']):(raw.categoriesModel||['Household','Personal']);return {transactions:raw.transactions.map(normalize),categories,descriptions}}}catch{}return {transactions:seed,categories:['Household','Personal'],descriptions:[...new Set([...DEFAULT_DESCRIPTIONS,...seed.map(t=>t.description)])]}}
-function save(){localStorage.setItem('expense-tracker-data',JSON.stringify({...state,version:2}));cloudRevision++;syncCloud()}const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);const fmtPct=n=>`${n.toFixed(2)}%`;const rowExpenses=t=>t.hh+t.jyn+t.stv;const rowTotal=t=>rowExpenses(t)+t.inc;const fmtDate=d=>new Date(`${d}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric'});const monthName=k=>new Date(`${k}-02T12:00:00`).toLocaleDateString('en-US',{month:'long',year:'numeric'});const escapeHtml=s=>String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-function visible(){return state.transactions.filter(t=>t.date.slice(0,7)===activeMonth).sort((a,b)=>a.date.localeCompare(b.date))}
-function totals(){const tx=visible(),hhT=tx.reduce((n,t)=>n+t.hh,0),jynT=tx.reduce((n,t)=>n+t.jyn,0),stvT=tx.reduce((n,t)=>n+t.stv,0),incT=tx.reduce((n,t)=>n+t.inc,0),expT=hhT+jynT+stvT;return {tx,hhT,jynT,stvT,incT,expT,stvPct:expT>0?stvT/expT*100:0,jynPct:expT>0?jynT/expT*100:0,hhPctInc:incT>0?hhT/incT*100:0,stvPctInc:incT>0?stvT/incT*100:0,jynPctInc:incT>0?jynT/incT*100:0,totPctInc:incT>0?expT/incT*100:0}}
-function render(){renderHeader();renderDashboard();renderTransactions();renderDescriptions();renderDescriptionList()}function renderHeader(){$('#monthButton').innerHTML=`${monthName(activeMonth)} <span>⌄</span>`;$('#transactionTitle').textContent=`${monthName(activeMonth)} Transactions`}
-function groups(tx){const g={};tx.forEach(t=>{const amount=rowExpenses(t);if(amount)g[t.description]=(g[t.description]||0)+amount});const total=Object.values(g).reduce((a,b)=>a+b,0);let running=0;return Object.entries(g).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,amount])=>{const start=total?running/total*100:0;running+=amount;return {name,amount,start,end:total?running/total*100:0}})}
-function renderDashboard(){const s=totals();$('#totalExpenses').textContent=money(s.expT);$('#householdExpenses').textContent=money(s.hhT);$('#stevePersonalExpenses').textContent=money(s.stvT);$('#jaynePersonalExpenses').textContent=money(s.jynT);$('#stevePctTotal').textContent=fmtPct(s.stvPct);$('#jaynePctTotal').textContent=fmtPct(s.jynPct);$('#totalIncome').textContent=money(s.incT);$('#householdPctIncome').textContent=fmtPct(s.hhPctInc);$('#stevePctIncome').textContent=fmtPct(s.stvPctInc);$('#jaynePctIncome').textContent=fmtPct(s.jynPctInc);$('#totalPctIncome').textContent=fmtPct(s.totPctInc);$('#householdTotal').textContent=money(s.hhT);$('#steveTotal').textContent=money(s.stvT);$('#jayneTotal').textContent=money(s.jynT);const descriptions=groups(s.tx);if(selectedCategory&&!descriptions.some(c=>c.name===selectedCategory))selectedCategory=null;const selection=descriptions.find(c=>c.name===selectedCategory);$('#donutTotal').textContent=selection?money(selection.amount):money(s.expT);$('#donut').querySelector('.donut-center span').textContent=selection?selection.name:'Total';const donutPct=$('#donutPct');donutPct.classList.toggle('hidden',!selection);if(selection)donutPct.textContent=fmtPct(s.expT?selection.amount/s.expT*100:0);$('#categoryCount').textContent=`${descriptions.length} descriptions`;$('#donut').style.background=descriptions.length?`conic-gradient(${descriptions.map((c,i)=>`${COLORS[i%COLORS.length]} ${c.start}% ${c.end}%`).join(',')})`:'#e8edf4';const shown=showAllCategories?descriptions:descriptions.slice(0,7);$('#categoryList').innerHTML=descriptions.length?shown.map(c=>{const i=descriptions.indexOf(c),color=COLORS[i%COLORS.length];return `<button class="category-row ${c.name===selectedCategory?'selected':''}" style="--category-color:${color}" data-category-select="${escapeHtml(c.name)}"><span class="category-dot" style="background:${color}"></span><span class="category-name">${escapeHtml(c.name)}</span><span class="category-amount">${money(c.amount)} <em class="category-pct">${fmtPct(s.expT?c.amount/s.expT*100:0)}</em></span></button>`}).join(''):'<p class="empty">No expenses this month.</p>';const all=$('#viewAllCategories');all.classList.toggle('hidden',descriptions.length<=7);all.textContent=showAllCategories?'Show fewer descriptions':`View all ${descriptions.length} descriptions`;$('#recentList').innerHTML=s.tx.length?s.tx.slice(0,5).map(recentHtml).join(''):'<p class="empty">No transactions this month.</p>'}
-function tokens(t){return [['Household',t.hh,'household'],['Jayne',t.jyn,'jayne'],['Steve',t.stv,'steve'],['Income',t.inc,'income']].filter(([,v])=>v>0).map(([n,v,c])=>`<span class="amount-token ${c}">${n[0]} ${money(v)}</span>`).join('')}function recentHtml(t){return `<div class="recent-row"><div class="avatar">${t.category[0]}</div><div class="recent-copy"><strong>${escapeHtml(t.description)}</strong><span>${fmtDate(t.date)} · ${escapeHtml(t.category)}</span></div><span class="recent-amount">${money(rowTotal(t))}</span></div>`}
-function renderTransactions(){const tx=visible();$('#transactionsList').innerHTML=tx.length?tx.map(t=>`<article class="transaction-row"><time class="date-badge">${fmtDate(t.date).replace(' ','<br>')}</time><div class="transaction-meta"><strong>${escapeHtml(t.description)}</strong><span>${escapeHtml(t.category)}</span></div><div class="transaction-right"><div class="split-summary">${tokens(t)}</div><strong>${money(rowTotal(t))}</strong><div class="transaction-actions"><button class="mini-button" data-edit="${t.id}">Edit</button><button class="mini-button delete" data-delete="${t.id}">Delete</button></div></div></article>`).join(''):`<p class="empty">No transactions for ${monthName(activeMonth)}. Tap "＋ Add Transaction" to get started.</p>`}
-function renderDescriptions(){$('#manageCategories').innerHTML=state.categories.slice().sort((a,b)=>a.localeCompare(b)).map((c,i)=>`<div class="manage-row"><span class="category-dot" style="background:${COLORS[i%COLORS.length]}"></span><span>${escapeHtml(c)}</span><button class="mini-button" data-category-edit="${escapeHtml(c)}">Rename</button><button class="mini-button delete" data-category-delete="${escapeHtml(c)}">Delete</button></div>`).join('')}
-function renderDescriptionList(){$('#manageDescriptions').innerHTML=state.descriptions.slice().sort((a,b)=>a.localeCompare(b)).map((d,i)=>`<div class="manage-row"><span class="category-dot" style="background:${COLORS[i%COLORS.length]}"></span><span>${escapeHtml(d)}</span><button class="mini-button" data-description-edit="${escapeHtml(d)}">Rename</button><button class="mini-button delete" data-description-delete="${escapeHtml(d)}">Delete</button></div>`).join('')}
-function options(id,items,selected){$(id).innerHTML=items.slice().sort().map(x=>`<option value="${escapeHtml(x)}" ${x===selected?'selected':''}>${escapeHtml(x)}</option>`).join('')}function defaultDate(){const today=new Date().toLocaleDateString('en-CA');return today.startsWith(activeMonth)?today:`${activeMonth}-01`}function openTransaction(id){$('#transactionForm').reset();const t=id&&state.transactions.find(x=>x.id===id);$('#formTitle').textContent=t?'Edit Transaction':'Add Transaction';$('#transactionId').value=t?.id||'';$('#dateInput').value=t?.date||defaultDate();options('#categoryInput',state.categories,t?.category||state.categories[0]);options('#descriptionSelect',state.descriptions,t?.description||state.descriptions[0]);$('#householdInput').value=t?.hh||'';$('#jayneInput').value=t?.jyn||'';$('#steveInput').value=t?.stv||'';$('#incomeInput').value=t?.inc||'';$('#transactionDialog').showModal()}
-function shiftMonth(n){const d=new Date(`${activeMonth}-01T12:00:00`);d.setMonth(d.getMonth()+n);activeMonth=d.toISOString().slice(0,7);render()}$('#previousMonth').onclick=()=>shiftMonth(-1);$('#nextMonth').onclick=()=>shiftMonth(1);$('#monthButton').onclick=()=>{const p=$('#monthPicker'),months=[...new Set(state.transactions.map(t=>t.date.slice(0,7)).concat(activeMonth))].sort().reverse();p.innerHTML=months.map(m=>`<button data-month="${m}">${monthName(m)}</button>`).join('');p.classList.toggle('hidden')};$('#monthPicker').onclick=e=>{if(e.target.dataset.month){activeMonth=e.target.dataset.month;$('#monthPicker').classList.add('hidden');render()}};
-$$('.tab').forEach(b=>b.onclick=()=>showView(b.dataset.view));$$('[data-go]').forEach(b=>b.onclick=()=>showView(b.dataset.go));function showView(n){$$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===n));$$('.view').forEach(v=>v.classList.toggle('active',v.id===`${n}View`));window.scrollTo({top:0,behavior:'smooth'})}$('#addButton').onclick=()=>openTransaction();$('#floatingAdd').onclick=()=>openTransaction();$('#addTransactionButton').onclick=()=>openTransaction();$('#addCategoryButton').onclick=()=>openCategoryDialog();$('#addDescriptionButton').onclick=()=>openDescriptionDialog();$$('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());$('#viewAllCategories').onclick=()=>{showAllCategories=!showAllCategories;renderDashboard()};
-function openCategoryDialog(name=''){editingCategory=name||null;$('#categoryForm').reset();$('#categoryDialogTitle').textContent=editingCategory?'Rename Category':'Add Category';$('#categorySaveButton').textContent=editingCategory?'Save':'Add';$('#categoryNameInput').value=name;$('#categoryDialog').showModal()}
-function openDescriptionDialog(name=''){editingDescription=name||null;$('#descriptionForm').reset();$('#descriptionDialogTitle').textContent=editingDescription?'Rename Description':'Add Description';$('#descriptionSaveButton').textContent=editingDescription?'Save':'Add';$('#descriptionNameInput').value=name;$('#descriptionDialog').showModal()}
-$('#transactionForm').onsubmit=e=>{e.preventDefault();const id=$('#transactionId').value,item={id:id||`${Date.now()}-${Math.random().toString(16).slice(2)}`,date:$('#dateInput').value,category:$('#categoryInput').value,description:$('#descriptionSelect').value,hh:number($('#householdInput').value),jyn:number($('#jayneInput').value),stv:number($('#steveInput').value),inc:number($('#incomeInput').value)};if(!item.date||!item.description||rowTotal(item)<=0){alert('Enter an amount in at least one of the four fields.');return}if(id)state.transactions=state.transactions.map(t=>t.id===id?item:t);else state.transactions.push(item);activeMonth=item.date.slice(0,7);save();$('#transactionDialog').close();render()};$('#categoryForm').onsubmit=e=>{e.preventDefault();const name=$('#categoryNameInput').value.trim();if(!name)return;const duplicate=state.categories.some(c=>c.toLowerCase()===name.toLowerCase()&&c!==editingCategory);if(duplicate){alert('That category already exists.');return}if(editingCategory){state.categories=state.categories.map(c=>c===editingCategory?name:c);state.transactions=state.transactions.map(t=>t.category===editingCategory?{...t,category:name}:t)}else state.categories.push(name);save();$('#categoryDialog').close();render()};
-$('#descriptionForm').onsubmit=e=>{e.preventDefault();const name=$('#descriptionNameInput').value.trim();if(!name)return;const duplicate=state.descriptions.some(d=>d.toLowerCase()===name.toLowerCase()&&d!==editingDescription);if(duplicate){alert('That description already exists.');return}if(editingDescription){state.descriptions=state.descriptions.map(d=>d===editingDescription?name:d);state.transactions=state.transactions.map(t=>t.description===editingDescription?{...t,description:name}:t)}else state.descriptions.push(name);save();$('#descriptionDialog').close();render()};
-document.addEventListener('click',e=>{const selected=e.target.closest('[data-category-select]')?.dataset.categorySelect,edit=e.target.dataset.edit,del=e.target.dataset.delete,categoryEdit=e.target.dataset.categoryEdit,categoryDelete=e.target.dataset.categoryDelete,descriptionEdit=e.target.dataset.descriptionEdit,descriptionDelete=e.target.dataset.descriptionDelete;if(selected){selectedCategory=selectedCategory===selected?null:selected;renderDashboard()}if(edit)openTransaction(edit);if(del&&confirm('Delete this transaction?')){state.transactions=state.transactions.filter(t=>t.id!==del);save();render()}if(categoryEdit)openCategoryDialog(categoryEdit);if(descriptionEdit)openDescriptionDialog(descriptionEdit);if(categoryDelete&&confirm(`Delete ${categoryDelete}?`)){state.categories=state.categories.filter(c=>c!==categoryDelete);save();render()}if(descriptionDelete&&confirm(`Delete ${descriptionDelete}?`)){state.descriptions=state.descriptions.filter(d=>d!==descriptionDelete);save();render()}});
+'use strict';
+const C = ExpenseCore;
+const R = ExpenseRecovery;
+let restorePreview = null;
+const $ = selector => document.querySelector(selector);
+const $$ = selector => [...document.querySelectorAll(selector)];
+const money = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const rowExpenses = t => t.hh + t.stv + t.jyn;
+const monthName = month => new Date(`${month}-02T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+const fmtDate = date => new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+let activeMonth = C.localDate().slice(0, 7);
+try {
+  const savedMonth = localStorage.getItem('expense-tracker-month');
+  if (/^(19|20|21)\d{2}-(0[1-9]|1[0-2])$/.test(savedMonth)) activeMonth = savedMonth;
+} catch { /* Transaction storage failures are handled below. */ }
+let store, cloud = null, cloudUser = null, cloudPoll = null, cloudChannel = null;
+let editingCategory = null, editingDescription = null, editingSnapshot = null, showAll = false, descriptionFilter = '';
+let syncMessage = 'Saved on this device', syncError = false;
+let reviewSnapshot = null;
+try {
+  store = new ExpenseStore(localStorage, { transactions: seed, categories: ['Household', 'Personal'], descriptions: [...new Set([...DEFAULT_DESCRIPTIONS, ...seed.map(t => t.description)])] }, (message, error = false) => {
+    syncMessage = message; syncError = error;
+    renderSync();
+  });
+} catch (error) {
+  $('#syncStatus').textContent = error.message;
+  $('#syncStatus').classList.add('error');
+  $$('button, input, select').forEach(el => el.disabled = true);
+}
+function state() { return store.state; }
+function total(transactions) {
+  return transactions.reduce((sum, t) => {
+    for (const key of ['hh', 'stv', 'jyn', 'inc']) sum[key] += t[key];
+    sum.expenses += rowExpenses(t); return sum;
+  }, { hh: 0, stv: 0, jyn: 0, inc: 0, expenses: 0 });
+}
+function monthTransactions() { return C.search(state(), { month: activeMonth }); }
+function commit(change) {
+  try { store.commit(change); render(); void syncCloud(); return true; }
+  catch (error) { alert(error.message); return false; }
+}
+function setMonth(month) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month < '1900-01' || month > '2200-12') return;
+  activeMonth = month; showAll = false;
+  try { localStorage.setItem('expense-tracker-month', month); } catch { /* Viewing still works. */ }
+  render();
+}
+function render() {
+  $('#monthButton').innerHTML = `${monthName(activeMonth)} <span>⌄</span>`;
+  $('#monthInput').value = activeMonth;
+  renderDashboard(); renderTransactions(); renderLists(); renderSync(); renderRecovery();
+}
+function renderDashboard() {
+  const tx = monthTransactions(), sum = total(tx), balance = sum.inc - sum.expenses;
+  $('#remainingTotal').textContent = money(balance);
+  $('#remainingTotal').classList.toggle('negative-balance', balance < 0);
+  $('#balanceLabel').textContent = balance < 0 ? 'Monthly balance' : 'Remaining';
+  $('#totalIncome').textContent = money(sum.inc);
+  $('#totalExpenses').textContent = money(sum.expenses);
+  $('#spendingCaption').textContent = sum.inc > 0 ? `${Math.round(sum.expenses / sum.inc * 100)}% of income spent` : 'No income recorded';
+  for (const [person, key] of [['household', 'hh'], ['steve', 'stv'], ['jayne', 'jyn']]) {
+    $(`#${person}Total`).textContent = money(sum[key]);
+    $(`#${person}Share`).textContent = sum.expenses > 0 ? `${(sum[key] / sum.expenses * 100).toFixed(1)}% of spending` : 'No spending yet';
+  }
+  $('#incomeRatios').innerHTML = [['Household', sum.hh], ['Steve', sum.stv], ['Jayne', sum.jyn], ['Total spending', sum.expenses]].map(([label, amount]) => `<div class="summary-row"><span>${label}</span><strong>${sum.inc > 0 ? `${(amount / sum.inc * 100).toFixed(1)}%` : '—'}</strong></div>`).join('') + (sum.inc <= 0 ? '<p class="helper">Add income to calculate these percentages.</p>' : '');
+  const groups = new Map();
+  for (const t of tx) if (rowExpenses(t)) groups.set(t.description, (groups.get(t.description) || 0) + rowExpenses(t));
+  const sorted = [...groups.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  $('#categoryCount').textContent = `${sorted.length} description${sorted.length === 1 ? '' : 's'}`;
+  $('#categoryList').innerHTML = (showAll ? sorted : sorted.slice(0, 5)).map(([name, amount]) => {
+    const share = sum.expenses ? amount / sum.expenses * 100 : 0;
+    return `<button class="spending-row" data-description-filter="${escapeHtml(name)}"><span class="spending-name">${escapeHtml(name)}</span><span class="spending-value">${money(amount)} <small>${share.toFixed(1)}%</small></span><span class="spending-track" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, share))}%"></span></span></button>`;
+  }).join('') || '<p class="empty">No expenses this month. Use Add to record your first transaction.</p>';
+  $('#viewAllCategories').classList.toggle('hidden', sorted.length <= 5);
+  $('#viewAllCategories').textContent = showAll ? 'Show top five' : `View all ${sorted.length} descriptions`;
+  $('#recentList').innerHTML = tx.slice(0, 5).map(t => `<button class="recent-row" data-edit="${escapeHtml(t.id)}"><span class="recent-copy"><strong>${escapeHtml(t.description)}</strong><span>${fmtDate(t.date)} · ${escapeHtml(t.category)}</span></span><span class="recent-amount">${amountHtml(t)}</span><span aria-hidden="true">›</span></button>`).join('') || '<p class="empty">No transactions this month.</p>';
+}
+function amountHtml(t) {
+  const expense = rowExpenses(t);
+  return `${expense ? `<span>${money(expense)} <small>spent</small></span>` : ''}${t.inc ? `<span class="positive">+${money(t.inc)} <small>income</small></span>` : ''}`;
+}
+function tokens(t) {
+  return [['Household', 'hh'], ['Steve', 'stv'], ['Jayne', 'jyn']].filter(([, key]) => t[key] > 0).map(([label, key]) => `<span class="amount-token ${key}">${label} ${money(t[key])}</span>`).join('');
+}
+function searchOptions() {
+  return { month: activeMonth, query: $('#transactionSearch').value, scope: $('#searchScope').value, person: $('#personFilter').value, category: $('#categoryFilter').value, description: descriptionFilter, sort: $('#transactionSort').value };
+}
+function renderTransactions() {
+  const selected = $('#categoryFilter').value;
+  const categories = [...new Set([...state().categories, ...state().transactions.map(t => t.category)])].sort();
+  $('#categoryFilter').innerHTML = '<option value="">All categories</option>' + categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  $('#categoryFilter').value = categories.includes(selected) ? selected : '';
+  const options = searchOptions(), tx = C.search(state(), options), sum = total(tx);
+  $('#transactionTitle').textContent = options.scope === 'all' ? 'All transactions' : monthName(activeMonth);
+  $('#descriptionFilterLabel').textContent = descriptionFilter ? `Description: ${descriptionFilter}` : '';
+  $('#searchSummary').textContent = `${tx.length} transaction${tx.length === 1 ? '' : 's'} · ${money(sum.expenses)} expenses · ${money(sum.inc)} income`;
+  $('#transactionsList').innerHTML = tx.map(t => `<article class="transaction-row"><div class="transaction-meta"><strong>${escapeHtml(t.description)}</strong><span>${fmtDate(t.date)} · ${escapeHtml(t.category)}</span><div class="split-summary">${tokens(t)}</div></div><div class="transaction-right"><strong>${amountHtml(t)}</strong><div class="transaction-actions"><button class="mini-button" data-edit="${escapeHtml(t.id)}" aria-label="Edit ${escapeHtml(t.description)} on ${t.date}">Edit</button><button class="mini-button delete" data-delete="${escapeHtml(t.id)}" aria-label="Move ${escapeHtml(t.description)} on ${t.date} to Trash">Trash</button></div></div></article>`).join('') || '<p class="empty">No matching transactions. Try another search, choose All months, or clear the filters.</p>';
+}
+function resetFilters() {
+  $('#transactionSearch').value = ''; $('#searchScope').value = 'month'; $('#personFilter').value = ''; $('#categoryFilter').value = ''; $('#transactionSort').value = 'newest'; descriptionFilter = '';
+}
+function showView(name) {
+  $$('.tab').forEach(button => { button.classList.toggle('active', button.dataset.view === name); button.setAttribute('aria-current', button.dataset.view === name ? 'page' : 'false'); });
+  $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}View`));
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+function listUsage(field, name) { return state().transactions.filter(t => t[field] === name).length; }
+function renderLists() {
+  for (const [key, field, target] of [['categories', 'category', '#manageCategories'], ['descriptions', 'description', '#manageDescriptions']]) {
+    $(target).innerHTML = state()[key].slice().sort((a, b) => a.localeCompare(b)).map(name => {
+      const count = listUsage(field, name);
+      return `<div class="manage-row"><div class="list-copy"><strong>${escapeHtml(name)}</strong><small>${count} transaction${count === 1 ? '' : 's'}</small></div><button class="mini-button" data-list-edit="${field}" data-name="${escapeHtml(name)}">Rename</button><button class="mini-button delete" data-list-delete="${field}" data-name="${escapeHtml(name)}" ${count ? 'disabled title="Used by transactions; rename instead"' : ''}>Delete</button></div>`;
+    }).join('') || '<p class="empty">No items yet. Select Add to create one.</p>';
+  }
+}
+function options(selector, items, selected) {
+  const choices = [...new Set([...items, ...(selected ? [selected] : [])])].sort((a, b) => a.localeCompare(b));
+  $(selector).innerHTML = '<option value="">Choose…</option>' + choices.map(name => `<option value="${escapeHtml(name)}" ${name === selected ? 'selected' : ''}>${escapeHtml(name)}${!items.includes(name) ? ' (previously used)' : ''}</option>`).join('');
+}
+function openTransaction(id) {
+  const t = id ? state().transactions.find(t => t.id === id) : null;
+  if (id && !t) { alert('This transaction was removed on another device.'); return; }
+  editingSnapshot = t ? C.clone(t) : null;
+  $('#transactionForm').reset(); $('#transactionId').value = t?.id || '';
+  $('#formTitle').textContent = t ? 'Edit Transaction' : 'Add Transaction';
+  $('#dateInput').value = t?.date || C.localDate();
+  $('#entryDateNote').textContent = !t && !C.localDate().startsWith(activeMonth) ? `Date starts at today. You are viewing ${monthName(activeMonth)}; change the date to add an older entry.` : '';
+  options('#categoryInput', state().categories, t?.category || '');
+  options('#descriptionSelect', state().descriptions, t?.description || '');
+  for (const [id, key] of [['householdInput', 'hh'], ['steveInput', 'stv'], ['jayneInput', 'jyn'], ['incomeInput', 'inc']]) $(`#${id}`).value = t?.[key] || '';
+  $('#transactionDialog').showModal();
+}
+function openList(field, name = '') {
+  const category = field === 'category';
+  if (category) editingCategory = name || null; else editingDescription = name || null;
+  const prefix = category ? 'category' : 'description';
+  $(`#${prefix}Form`).reset(); $(`#${prefix}NameInput`).value = name;
+  $(`#${prefix}DialogTitle`).textContent = `${name ? 'Rename' : 'Add'} ${category ? 'Category' : 'Description'}`;
+  $(`#${prefix}SaveButton`).textContent = name ? 'Save' : 'Add'; $(`#${prefix}Dialog`).showModal();
+}
+function saveList(event, field) {
+  event.preventDefault();
+  const key = field === 'category' ? 'categories' : 'descriptions', old = field === 'category' ? editingCategory : editingDescription;
+  const name = $(`#${field}NameInput`).value.trim();
+  if (!name) return;
+  const names = new Set([...state()[key], ...state().transactions.map(t => t[field])]);
+  if ([...names].some(n => n.toLowerCase() === name.toLowerCase() && n !== old)) { alert('That name already exists or is used by a transaction.'); return; }
+  if (old && !state()[key].includes(old)) { alert('This list changed on another device. Close and reopen the form.'); return; }
+  const count = old ? listUsage(field, old) : 0;
+  if (old && old !== name && count && !confirm(`Rename “${old}” to “${name}” in ${count} existing transaction${count === 1 ? '' : 's'}?`)) return;
+  if (commit(s => { s[key] = old ? s[key].map(n => n === old ? name : n) : [...s[key], name]; if (old) s.transactions = s.transactions.map(t => t[field] === old ? { ...t, [field]: name } : t); })) $(`#${field}Dialog`).close();
+}
+function renderSync() {
+  if (!store) return;
+  const status = $('#syncStatus');
+  status.textContent = cloudUser ? syncMessage : (store.record.dirty ? 'Changes saved on this device · Sign in to sync' : 'Saved on this device');
+  if (cloudUser && syncMessage === 'Synced' && store.record.lastSynced) status.textContent = `Synced at ${new Date(store.record.lastSynced).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  status.classList.toggle('error', syncError);
+  status.title = store.record.lastSynced ? `Last successful sync: ${new Date(store.record.lastSynced).toLocaleString()}` : 'Not synced yet';
+  $('#accountButton').textContent = cloudUser ? 'Sign Out' : 'Sign In';
+  $('#syncButton').classList.toggle('hidden', !cloudUser);
+  $('#syncButton').disabled = store.busy;
+  $('#reviewSyncButton').classList.toggle('hidden', !store.review);
+}
+const backend = {
+  async read(user) {
+    const { data, error } = await cloud.from('expense_data').select('data,updated_at').eq('user_id', user).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async compareAndSwap(user, row, data) {
+    const timestamp = new Date(Math.max(Date.now(), (Date.parse(row.updated_at) || 0) + 1)).toISOString();
+    let request = cloud.from('expense_data').update({ data, updated_at: timestamp }).eq('user_id', user);
+    request = row.updated_at == null ? request.is('updated_at', null) : request.eq('updated_at', row.updated_at);
+    const { data: updated, error } = await request.select('updated_at');
+    if (error) throw error;
+    return !!updated?.length;
+  }
+};
+async function syncCloud() {
+  if (!store || !cloud) return;
+  await store.sync(backend);
+  render();
+}
+function conflictValue(value) {
+  if (!value) return 'Deleted';
+  if (Array.isArray(value)) return value.join(', ') || 'Empty list';
+  return `${value.date} · ${value.category} · ${value.description} · Household ${money(value.hh)}, Steve ${money(value.stv)}, Jayne ${money(value.jyn)}, Income ${money(value.inc)}`;
+}
+function reviewSync() {
+  const review = store.review;
+  if (!review) return;
+  reviewSnapshot = review;
+  $('#syncReviewContent').innerHTML = review.initial
+    ? `<p>This device has ${state().transactions.length} transactions and the shared copy has ${review.remote.transactions.length}. They have not been linked with a common sync history yet.</p><label class="review-choice"><input type="radio" name="initial" value="merge" required /> Merge both copies and review any differences</label><label class="review-choice"><input type="radio" name="initial" value="remote" required /> Use the shared copy (save a local recovery copy first)</label>`
+    : review.conflicts.map((conflict, i) => `<fieldset><legend>${escapeHtml(conflict.label)}</legend><label class="review-choice"><input type="radio" name="choice-${i}" value="local" required /> This device: ${escapeHtml(conflictValue(conflict.local))}</label><label class="review-choice"><input type="radio" name="choice-${i}" value="remote" required /> Shared: ${escapeHtml(conflictValue(conflict.remote))}</label></fieldset>`).join('');
+  $('#syncReviewDialog').showModal();
+}
+async function establishSession(session) {
+  const user = session?.user || null;
+  if (cloudUser?.id === user?.id) return;
+  if (cloudPoll) clearInterval(cloudPoll);
+  if (cloudChannel) { cloud.removeChannel(cloudChannel); cloudChannel = null; }
+  cloudUser = user;
+  try { store.connect(user?.id || null); }
+  catch (error) { syncMessage = error.message; syncError = true; renderSync(); return; }
+  renderSync();
+  if (!user) return;
+  cloudPoll = setInterval(() => void syncCloud(), 20000);
+  cloudChannel = cloud.channel(`expense-sync-${user.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'expense_data', filter: `user_id=eq.${user.id}` }, () => void syncCloud()).subscribe();
+  await syncCloud();
+}
+async function initCloud() {
+  if (!window.supabase || typeof SUPABASE_URL === 'undefined') return;
+  cloud = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, { global: { fetch: (url, options = {}) => fetch(url, { ...options, cache: 'no-store' }) } });
+  cloud.auth.onAuthStateChange((_event, session) => { setTimeout(() => void establishSession(session), 0); });
+  try {
+    const { data, error } = await cloud.auth.getSession();
+    if (error) throw error;
+    await establishSession(data.session);
+  } catch (error) { syncMessage = error.message; syncError = true; renderSync(); }
+}
+function authMessage(message, success = false) { $('#authMessage').textContent = message; $('#authMessage').classList.toggle('success', success); }
+function closeMonthPicker() { $('#monthPicker').classList.add('hidden'); $('#monthButton').setAttribute('aria-expanded', 'false'); }
+if (store) {
+  $('#previousMonth').onclick = () => setMonth(C.shiftMonth(activeMonth, -1));
+  $('#nextMonth').onclick = () => setMonth(C.shiftMonth(activeMonth, 1));
+  $('#monthButton').onclick = () => { const hidden = $('#monthPicker').classList.toggle('hidden'); $('#monthButton').setAttribute('aria-expanded', String(!hidden)); if (!hidden) $('#monthInput').focus(); };
+  $('#monthInput').onchange = event => setMonth(event.target.value);
+  $('#thisMonthButton').onclick = () => { setMonth(C.localDate().slice(0, 7)); closeMonthPicker(); };
+  $('#closeMonthPicker').onclick = closeMonthPicker;
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMonthPicker(); });
+  $$('.tab').forEach(button => button.onclick = () => showView(button.dataset.view));
+  $$('[data-go]').forEach(button => button.onclick = () => { resetFilters(); renderTransactions(); showView(button.dataset.go); });
+  $('#addButton').onclick = () => openTransaction();
+  $('#viewAllCategories').onclick = () => { showAll = !showAll; renderDashboard(); };
+  $('#transactionSearch').oninput = renderTransactions;
+  for (const id of ['searchScope', 'personFilter', 'categoryFilter', 'transactionSort']) $(`#${id}`).onchange = renderTransactions;
+  $('#clearFilters').onclick = () => { resetFilters(); renderTransactions(); };
+  $$('[data-close]').forEach(button => button.onclick = () => button.closest('dialog').close());
+  $('#addCategoryButton').onclick = () => openList('category');
+  $('#addDescriptionButton').onclick = () => openList('description');
+  $('#categoryForm').onsubmit = event => saveList(event, 'category');
+  $('#descriptionForm').onsubmit = event => saveList(event, 'description');
+  $('#transactionForm').onsubmit = event => {
+    event.preventDefault();
+    const id = $('#transactionId').value, current = id ? state().transactions.find(t => t.id === id) : null;
+    if (id && !C.equal(current, editingSnapshot)) { alert('This transaction changed on another device. Close and reopen it to review the latest version before saving.'); return; }
+    const item = { ...current, ...(!id ? { createdAt: new Date().toISOString() } : {}), id: id || crypto.randomUUID(), date: $('#dateInput').value, category: $('#categoryInput').value, description: $('#descriptionSelect').value, hh: Number($('#householdInput').value), stv: Number($('#steveInput').value), jyn: Number($('#jayneInput').value), inc: Number($('#incomeInput').value) };
+    if (!item.date || !item.category || !item.description || rowExpenses(item) + item.inc <= 0 || ['hh', 'stv', 'jyn', 'inc'].some(k => !Number.isFinite(item[k]) || item[k] < 0)) { alert('Choose a date, category and description, and enter at least one positive amount.'); return; }
+    if (commit(s => { if (id) s.transactions = s.transactions.map(t => t.id === id ? item : t); else s.transactions.push(item); })) {
+      $('#transactionDialog').close(); resetFilters(); setMonth(item.date.slice(0, 7));
+    }
+  };
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button'); if (!button) return;
+    const d = button.dataset;
+    if (d.person || d.descriptionFilter) { resetFilters(); if (d.person) $('#personFilter').value = d.person; else descriptionFilter = d.descriptionFilter; renderTransactions(); showView('transactions'); }
+    if (d.edit) openTransaction(d.edit);
+    if (d.delete) {
+      const t = state().transactions.find(t => t.id === d.delete);
+      if (t && commit(s => R.remove(s, d.delete))) { $('#recoveryStatus').textContent = `Moved “${t.description}” to Trash. You can restore it in Recovery.`; }
+    }
+    if (d.listEdit) openList(d.listEdit, d.name);
+    if (d.listDelete) {
+      const count = listUsage(d.listDelete, d.name);
+      if (count) { alert(`This item is used by ${count} transactions. Rename it instead.`); return; }
+      if (confirm(`Delete unused ${d.listDelete} “${d.name}”?`)) commit(s => { const key = d.listDelete === 'category' ? 'categories' : 'descriptions'; s[key] = s[key].filter(name => name !== d.name); });
+    }
+  });
+  $('#syncButton').onclick = () => void syncCloud();
+  $('#reviewSyncButton').onclick = reviewSync;
+  $('#syncReviewForm').onsubmit = async event => {
+    event.preventDefault();
+    if (!store.review) { $('#syncReviewDialog').close(); return; }
+    if (store.review !== reviewSnapshot) { $('#syncReviewDialog').close(); reviewSync(); return; }
+    const data = new FormData(event.target), choices = {};
+    if (store.review.initial) choices.initial = data.get('initial');
+    else store.review.conflicts.forEach((conflict, i) => choices[conflict.key] = data.get(`choice-${i}`));
+    try { store.resolve(choices); $('#syncReviewDialog').close(); render(); await syncCloud(); if (store.review) reviewSync(); }
+    catch (error) { alert(error.message); }
+  };
+  $('#accountButton').onclick = async () => {
+    if (!cloud) { alert('Sign-in is unavailable while offline. Changes remain on this device.'); return; }
+    if (cloudUser) {
+      if (store.record.dirty && !confirm('Pending changes will remain on this device for this account. Sign out?')) return;
+      const { error } = await cloud.auth.signOut(); if (error) alert(error.message); return;
+    }
+    authMessage(''); $('#authForm').reset(); $('#authDialog').showModal();
+  };
+  $('#authForm').onsubmit = async event => {
+    event.preventDefault(); authMessage('Signing in…', true);
+    try { const { error } = await cloud.auth.signInWithPassword({ email: $('#authEmail').value.trim(), password: $('#authPassword').value }); if (error) throw error; $('#authDialog').close(); }
+    catch (error) { authMessage(error.message); }
+  };
+  $('#createAccountButton').onclick = async () => {
+    if (!$('#authForm').reportValidity()) return;
+    authMessage('Creating account…', true);
+    try { const { data, error } = await cloud.auth.signUp({ email: $('#authEmail').value.trim(), password: $('#authPassword').value }); if (error) throw error; authMessage(data.session ? 'Account created. Initialize shared data in the Mac app.' : 'Check your email to confirm the account, then sign in.', true); }
+    catch (error) { authMessage(error.message); }
+  };
+  window.addEventListener('focus', () => void syncCloud());
+  window.addEventListener('online', () => void syncCloud());
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) void syncCloud(); });
+  window.addEventListener('storage', event => {
+    if (event.key === store.key) { syncMessage = 'Another tab changed the data. Reload before editing or syncing.'; syncError = true; renderSync(); }
+  });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  render(); showView('dashboard'); void initCloud();
+}
 
-function cloudPayload(){const months={};state.transactions.forEach(t=>{const key=t.date.slice(0,7);if(!months[key])months[key]={txs:[]};months[key].txs.push({id:t.id,date:t.date,cat:t.category,desc:t.description,hh:t.hh,jyn:t.jyn,stv:t.stv,inc:t.inc})});return {cats:state.categories,descs:state.descriptions,months,currentMonth:activeMonth}}
-function applyCloudPayload(data){const transactions=[];Object.values(data.months||{}).forEach(month=>{(month.txs||[]).forEach(t=>transactions.push({id:t.id,date:t.date,category:t.cat,description:t.desc,hh:number(t.hh),jyn:number(t.jyn),stv:number(t.stv),inc:number(t.inc)}))});state={transactions,categories:data.cats||['Household','Personal'],descriptions:data.descs||DEFAULT_DESCRIPTIONS};if(!data.months?.[activeMonth])activeMonth=data.currentMonth||activeMonth;localStorage.setItem('expense-tracker-data',JSON.stringify({...state,version:2}));render()}
-function showAuthMessage(message,success=false){const el=$('#authMessage');el.textContent=message;el.classList.toggle('success',success)}function setSyncStatus(message,error=false){const el=$('#syncStatus');el.textContent=`v19 · ${message}`;el.classList.toggle('error',error)}function updateAccountButton(){$('#accountButton').textContent=cloudUser?'Sign Out':'Sign In';$('#syncButton').classList.toggle('hidden',!cloudUser);if(!cloudUser)setSyncStatus('Sign in')}
-async function loadCloud(force=false){if(!cloudUser||(!force&&cloudWriting))return;if(force)setSyncStatus('Refreshing…');const requestRevision=cloudRevision;const {data,error}=await cloud.from('expense_data').select('data,updated_at').eq('user_id',cloudUser.id).maybeSingle();if(error){console.warn(error.message);setSyncStatus('Sync error',true);return}if((requestRevision!==cloudRevision||cloudWriting)&&!force)return;if(data?.data){cloudReady=true;const changed=data.updated_at!==lastCloudUpdatedAt;if(changed){applyCloudPayload(data.data);lastCloudUpdatedAt=data.updated_at}if(force||changed)setSyncStatus('Synced')}else{cloudReady=false;setSyncStatus('No cloud data',true)}}
-async function syncCloud(){if(!cloudReady||!cloudUser)return;if(cloudWriting){cloudQueued=true;return}cloudWriting=true;cloudQueued=false;setSyncStatus('Saving…');const revision=cloudRevision;const {error}=await cloud.from('expense_data').upsert({user_id:cloudUser.id,data:cloudPayload(),updated_at:new Date().toISOString()});cloudWriting=false;if(error){console.warn(error.message);setSyncStatus('Save error',true);return}if(cloudQueued||cloudRevision!==revision){cloudQueued=false;syncCloud();return}await loadCloud()}
-async function establishSession(session){cloudUser=session?.user||null;updateAccountButton();if(!cloudUser)return;await loadCloud();if(cloudPoll)clearInterval(cloudPoll);cloudPoll=setInterval(loadCloud,20000);if(cloudChannel)cloud.removeChannel(cloudChannel);cloudChannel=cloud.channel('expense-data-sync').on('postgres_changes',{event:'*',schema:'public',table:'expense_data',filter:`user_id=eq.${cloudUser.id}`},()=>loadCloud()).subscribe();if(!cloudReady)showAuthMessage('Signed in. Open the Mac app and sign in there to import its data first.',true)}
-async function initCloud(){if(!window.supabase||typeof SUPABASE_URL==='undefined')return;cloud=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{global:{fetch:(url,options={})=>fetch(url,{...options,cache:'no-store'})}});const {data:{session}}=await cloud.auth.getSession();await establishSession(session);cloud.auth.onAuthStateChange((_event,session)=>{establishSession(session)})}
-$('#syncButton').onclick=()=>loadCloud(true);$('#accountButton').onclick=async()=>{if(cloudUser){await cloud.auth.signOut();cloudReady=false;updateAccountButton();return}showAuthMessage('');$('#authForm').reset();$('#authDialog').showModal()};$('#authForm').onsubmit=async e=>{e.preventDefault();showAuthMessage('Signing in…',true);const {error}=await cloud.auth.signInWithPassword({email:$('#authEmail').value.trim(),password:$('#authPassword').value});showAuthMessage(error?error.message:'Signed in.',!error);if(!error)$('#authDialog').close()};$('#createAccountButton').onclick=async()=>{showAuthMessage('Creating account…',true);const {data,error}=await cloud.auth.signUp({email:$('#authEmail').value.trim(),password:$('#authPassword').value});if(error){showAuthMessage(error.message);return}showAuthMessage(data.session?'Account created.':'Check your email to confirm the account, then sign in.',true);if(data.session)$('#authDialog').close()};
-window.addEventListener('focus',loadCloud);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCloud()});if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');render();initCloud();
+function downloadText(filename, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a'); link.href = url; link.download = filename;
+  document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function renderRecovery() {
+  $('#trashCount').textContent = `${(state().trash || []).length} ${(state().trash || []).length === 1 ? 'entry' : 'entries'}`;
+  $('#trashList').innerHTML = (state().trash || []).slice().sort((a, b) => b.deletedAt.localeCompare(a.deletedAt)).map(item => `<div class="recovery-row"><div><strong>${escapeHtml(item.transaction.description)}</strong><small>${fmtDate(item.transaction.date)} · ${money(rowExpenses(item.transaction))} expenses · ${money(item.transaction.inc)} income</small><small>Deleted ${new Date(item.deletedAt).toLocaleString()}</small></div><button class="secondary-button" data-restore-trash="${escapeHtml(item.id)}">Restore</button></div>`).join('') || '<p class="empty">Trash is empty.</p>';
+  try {
+    $('#recoveryCopies').innerHTML = store.backups().map(copy => `<div class="recovery-row"><div><strong>${escapeHtml(copy.label)}</strong><small>${escapeHtml(new Date(copy.createdAt).toLocaleString())}</small></div><div class="recovery-actions"><button class="text-button" data-download-copy="${escapeHtml(copy.id)}">Download</button><button class="text-button" data-preview-copy="${escapeHtml(copy.id)}">Preview restore</button></div></div>`).join('') || '<p class="empty">No recovery copies yet.</p>';
+  } catch (error) { $('#recoveryCopies').textContent = error.message; }
+}
+function previewRestore(imported, label) {
+  const sums = total(imported.state.transactions);
+  restorePreview = { ...imported, raw: store.raw };
+  $('#restoreForm').reset();
+  $('#restoreSummary').innerHTML = `<p><strong>${escapeHtml(label)}</strong></p><p>${imported.state.transactions.length} active transaction${imported.state.transactions.length === 1 ? '' : 's'} · ${(imported.state.trash || []).length} in Trash<br>${money(sums.expenses)} expenses · ${money(sums.inc)} income</p><p>Currently on this device: ${state().transactions.length} active transaction${state().transactions.length === 1 ? '' : 's'} and ${(state().trash || []).length} in Trash.</p>`;
+  $('#restoreDialog').showModal();
+}
+if (store) {
+  $('#downloadBackup').onclick = () => {
+    try { downloadText(`expense-backup-${C.localDate()}.json`, JSON.stringify(store.exportBackup(), null, 2), 'application/json'); }
+    catch (error) { alert(error.message); }
+  };
+  $('#exportCsv').onclick = () => downloadText(`expense-transactions-${C.localDate()}.csv`, R.csv(C.search(state(), { scope: 'all', sort: 'oldest' })), 'text/csv;charset=utf-8');
+  $('#chooseBackup').onclick = () => { $('#backupFile').value = ''; $('#backupFile').click(); };
+  $('#backupFile').onchange = async event => {
+    const file = event.target.files[0]; if (!file) return;
+    try { if (file.size > 10 * 1024 * 1024) throw new Error('Choose a backup smaller than 10 MB.'); previewRestore(R.parse(await file.text()), file.name); }
+    catch (error) { $('#recoveryStatus').textContent = `Backup not loaded: ${error.message}`; }
+  };
+  $('#restoreForm').onsubmit = async event => {
+    event.preventDefault(); if (!restorePreview) return;
+    const mode = new FormData(event.target).get('restoreMode');
+    if (mode === 'replace' && !confirm('Replace all current transactions, lists, and Trash with this backup? A recovery copy will be kept, and the changes will sync to your account.')) return;
+    try {
+      store.restoreBackup(restorePreview.state, mode, restorePreview.raw);
+      $('#restoreDialog').close(); restorePreview = null; render();
+      $('#recoveryStatus').textContent = 'Restore saved on this device. Your previous data is available under Recovery copies.';
+      await syncCloud();
+    } catch (error) { alert(error.message); }
+  };
+  document.addEventListener('click', event => {
+    const button = event.target.closest('button'); if (!button) return;
+    const d = button.dataset;
+    if (d.restoreTrash) commit(s => R.undelete(s, d.restoreTrash));
+    if (d.downloadCopy || d.previewCopy) {
+      try {
+        const copy = store.backups().find(c => c.id === (d.downloadCopy || d.previewCopy));
+        if (!copy) throw new Error('This recovery copy is no longer available.');
+        if (d.downloadCopy) downloadText(`expense-recovery-${copy.id}.json`, JSON.stringify(copy.backup, null, 2), 'application/json');
+        else previewRestore(R.parse(JSON.stringify(copy.backup)), copy.label);
+      } catch (error) { alert(error.message); }
+    }
+  });
+}

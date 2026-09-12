@@ -1,0 +1,45 @@
+{
+  "format": "expense-tracker-backup",
+  "version": 1,
+  "exportedAt": "2026-09-12T17:33:02.534Z",
+  "data": {
+    "cats": [
+      "Household"
+    ],
+    "descs": [
+      "Groceries"
+    ],
+    "trash": [
+      {
+        "id": "deleted",
+        "transaction": {
+          "id": "deleted",
+          "date": "2026-09-01",
+          "hh": 21.5,
+          "jyn": 0,
+          "stv": 0,
+          "inc": 0,
+          "cat": "Household",
+          "desc": "Groceries"
+        },
+        "deletedAt": "2026-09-12T17:33:02.521Z"
+      }
+    ],
+    "months": {
+      "2026-09": {
+        "txs": [
+          {
+            "id": "active",
+            "date": "2026-09-01",
+            "hh": 21.5,
+            "jyn": 0,
+            "stv": 0,
+            "inc": 0,
+            "cat": "Household",
+            "desc": "Groceries"
+          }
+        ]
+      }
+    }
+  }
+}
