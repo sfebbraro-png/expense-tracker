@@ -29,12 +29,21 @@
     }
     return result;
   }
+  function transactionIssues(t) {
+    const issues = [];
+    if (!t.id || typeof t.id !== 'string') issues.push('missing id');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') || localDate(new Date(`${t.date}T12:00:00`)) !== t.date) issues.push(`bad date ${t.date}`);
+    if (!t.category) issues.push('missing category');
+    if (!t.description) issues.push('missing description');
+    for (const key of ['hh', 'jyn', 'stv', 'inc']) if (!Number.isFinite(t[key])) issues.push(`bad ${key}`);
+    return issues;
+  }
   function validate(state) {
     const ids = new Set();
     for (const t of state.transactions) {
-      if (!t.id || typeof t.id !== 'string' || ids.has(t.id) || !/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') || localDate(new Date(`${t.date}T12:00:00`)) !== t.date || !t.category || !t.description) throw new Error('Invalid or duplicate transaction. The saved copy was not replaced.');
+      const issues = transactionIssues(t);
+      if (issues.length || ids.has(t.id)) throw new Error(ids.has(t.id) ? 'Invalid or duplicate transaction. The saved copy was not replaced.' : `Invalid transaction (${issues.join(', ')}). The saved copy was not replaced.`);
       ids.add(t.id);
-      for (const key of ['hh', 'jyn', 'stv', 'inc']) if (!Number.isFinite(t[key])) throw new Error('Invalid transaction amount.');
     }
     for (const key of ['categories', 'descriptions']) if (!Array.isArray(state[key]) || state[key].some(v => typeof v !== 'string' || !v.trim())) throw new Error('Invalid saved list.');
     if (state.trash !== undefined) {
@@ -48,18 +57,65 @@
     }
     return state;
   }
-  function fromCloud(data) {
+  // Repair the known Mac bug where an amount was saved as the date / month key.
+  function repairCloudTransaction(raw, monthKey) {
+    const t = { ...raw };
+    let repaired = false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(t.date || '') && /^(?:\d+)(?:\.\d+)?$/.test(String(t.date || monthKey || ''))) {
+      const amount = Number(t.date || monthKey);
+      if (Number.isFinite(amount) && ![t.hh, t.jyn, t.stv, t.inc].some(v => Number(v) > 0)) t.hh = amount;
+      t.date = `${localDate().slice(0, 7)}-01`;
+      repaired = true;
+    }
+    return { raw: t, repaired };
+  }
+  function fromCloud(data, { strict = false } = {}) {
     if (!data || !data.months || typeof data.months !== 'object') throw new Error('Shared data has an unrecognized format. Nothing was replaced.');
-    const transactions = Object.values(data.months).flatMap(month => {
+    const transactions = [];
+    const skipped = [];
+    const ids = new Set();
+    for (const [monthKey, month] of Object.entries(data.months)) {
       if (!Array.isArray(month.txs)) throw new Error('Shared transactions have an unrecognized format.');
-      return month.txs.map(normalize);
-    });
+      for (const original of month.txs) {
+        let t;
+        try {
+          const fixed = repairCloudTransaction(original, monthKey);
+          t = normalize(fixed.raw);
+          if (fixed.repaired) skipped.push(`${t.description || t.id}: repaired amount saved as date`);
+        } catch (error) {
+          if (strict) throw error;
+          skipped.push(error.message); continue;
+        }
+        const issues = transactionIssues(t);
+        if (issues.length || ids.has(t.id)) {
+          const message = `${t.description || t.id || 'entry'}: ${ids.has(t.id) ? 'duplicate id' : issues.join(', ')}`;
+          if (strict) throw new Error('Invalid or duplicate transaction. The saved copy was not replaced.');
+          skipped.push(message);
+          continue;
+        }
+        ids.add(t.id);
+        transactions.push(t);
+      }
+    }
     const state = { transactions, categories: data.cats ?? ['Household', 'Personal'], descriptions: data.descs ?? [...new Set(transactions.map(t => t.description))] };
     if (data.trash !== undefined) {
       if (!Array.isArray(data.trash)) throw new Error('Invalid shared trash.');
-      state.trash = data.trash.map(item => ({ ...item, transaction: normalize(item.transaction) }));
+      state.trash = [];
+      for (const item of data.trash) {
+        try {
+          const entry = { ...item, transaction: normalize(item.transaction) };
+          validate({ transactions: [entry.transaction], categories: [], descriptions: [] });
+          if (ids.has(entry.id) || entry.id !== entry.transaction.id || !Number.isFinite(Date.parse(entry.deletedAt))) throw new Error('Invalid or duplicate trash entry.');
+          state.trash.push(entry);
+        } catch (error) {
+          if (strict) throw error;
+          skipped.push(`Trash ${item?.id || 'entry'} skipped`);
+        }
+      }
     }
-    return validate(state);
+    validate(state);
+    if (skipped.length) state._syncWarnings = skipped;
+    return state;
   }
   function toCloud(state, template = {}, currentMonth = template.currentMonth) {
     const result = clone(template);

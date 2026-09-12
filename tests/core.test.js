@@ -166,6 +166,20 @@ test('legacy category-as-description lists are preserved during migration', () =
   assert.equal(store.state.transactions[0].category, 'Personal');
 });
 test('malformed amounts and impossible dates are rejected without coercion', () => {
-  assert.throws(() => C.fromCloud({ cats: [], descs: [], months: { m: { txs: [{ ...tx('bad'), hh: 'not a number' }] } } }), /amount/);
+  assert.equal(C.fromCloud({ cats: [], descs: [], months: { m: { txs: [{ ...tx('bad'), hh: 'not a number' }] } } }).transactions.length, 0);
   assert.throws(() => C.validate(state(tx('bad', 10, 'Groceries', '2026-02-30'))), /Invalid/);
+});
+test('fromCloud repairs Mac amount-as-date corruption instead of blocking sync', () => {
+  const state = C.fromCloud({
+    cats: ['Household'], descs: ['Eating Out', 'Groceries'],
+    months: {
+      '30.61': { txs: [{ id: 'broken', date: '30.61', cat: 'Household', desc: 'Eating Out', hh: 0, jyn: 0, stv: 0, inc: 0 }] },
+      '2026-09': { txs: [{ id: 'ok', date: '2026-09-01', cat: 'Household', desc: 'Groceries', hh: 10, jyn: 0, stv: 0, inc: 0 }] }
+    }
+  });
+  assert.equal(state.transactions.length, 2);
+  const fixed = state.transactions.find(t => t.id === 'broken');
+  assert.equal(fixed.hh, 30.61);
+  assert.match(fixed.date, /^\d{4}-\d{2}-01$/);
+  assert.ok(state._syncWarnings.some(message => /repaired/i.test(message)));
 });

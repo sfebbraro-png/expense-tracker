@@ -19,7 +19,7 @@
       const state = { transactions: legacy.transactions.map(C.normalize), categories: legacy.categories ?? [], descriptions: legacy.descriptions ?? [], ...(legacy.trash ? { trash: legacy.trash.map(item => ({ ...item, transaction: C.normalize(item.transaction) })) } : {}) };
       data = C.toCloud(C.validate(state));
     }
-    return { state: C.fromCloud(data), template: data };
+    return { state: C.fromCloud(data, { strict: true }), template: data };
   }
   function csv(transactions) {
     const cell = value => {

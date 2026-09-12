@@ -119,6 +119,8 @@
           if (!current()) return;
           if (!row) { this.notify('No shared data yet. Open the Mac app to initialize sync.', true); return; }
           const remote = C.fromCloud(row.data);
+          const warnings = remote._syncWarnings || [];
+          delete remote._syncWarnings;
           this.remoteTemplate = row.data;
           // Keep this device's viewing month. Never adopt a shared month older than this calendar month.
           if (!this.currentMonth) {
@@ -130,14 +132,14 @@
             // Demo seed or an empty phone install is not real pending work. Take the Mac/shared copy.
             if (isDemoSeed(this.state)) {
               this.persist({ ...this.record, state: remote, base: remote, dirty: false, owner: user, lastSynced: new Date().toISOString() });
-              this.notify('Synced'); return;
+              this.notify(warnings.length ? `Synced · repaired ${warnings.length} shared entr${warnings.length === 1 ? 'y' : 'ies'}` : 'Synced'); return;
             }
             this.review = { initial: true, remote, row, conflicts: [] };
             this.notify('Review first sync', true); return;
           }
           if (!this.record.dirty || !this.record.base) {
             this.persist({ ...this.record, state: remote, base: remote, dirty: false, owner: user, lastSynced: new Date().toISOString() });
-            this.notify('Synced'); return;
+            this.notify(warnings.length ? `Synced · repaired ${warnings.length} shared entr${warnings.length === 1 ? 'y' : 'ies'}` : 'Synced'); return;
           }
           const merged = C.merge(this.record.base, this.state, remote);
           if (merged.conflicts.length) {
