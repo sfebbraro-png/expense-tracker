@@ -134,7 +134,7 @@ function renderLists() {
   for (const [key, field, target] of [['categories', 'category', '#manageCategories'], ['descriptions', 'description', '#manageDescriptions']]) {
     $(target).innerHTML = state()[key].slice().sort((a, b) => a.localeCompare(b)).map(name => {
       const count = listUsage(field, name);
-      return `<div class="manage-row"><div class="list-copy"><strong>${escapeHtml(name)}</strong><small>${count} transaction${count === 1 ? '' : 's'}</small></div><button class="mini-button" data-list-edit="${field}" data-name="${escapeHtml(name)}">Rename</button><button class="mini-button delete" data-list-delete="${field}" data-name="${escapeHtml(name)}" ${count ? 'disabled title="Used by transactions; rename instead"' : ''}>Delete</button></div>`;
+      return `<div class="manage-row"><div class="list-copy"><strong>${escapeHtml(name)}</strong><small>${count} transaction${count === 1 ? '' : 's'}</small></div><button class="mini-button" data-list-edit="${field}" data-name="${escapeHtml(name)}">Rename</button><button class="mini-button delete" data-list-delete="${field}" data-name="${escapeHtml(name)}">Delete</button></div>`;
     }).join('') || '<p class="empty">No items yet. Select Add to create one.</p>';
   }
 }
@@ -290,8 +290,8 @@ if (store) {
     if (d.listEdit) openList(d.listEdit, d.name);
     if (d.listDelete) {
       const count = listUsage(d.listDelete, d.name);
-      if (count) { alert(`This item is used by ${count} transactions. Rename it instead.`); return; }
-      if (confirm(`Delete unused ${d.listDelete} “${d.name}”?`)) commit(s => { const key = d.listDelete === 'category' ? 'categories' : 'descriptions'; s[key] = s[key].filter(name => name !== d.name); });
+      const message = count ? `Delete ${d.listDelete} “${d.name}”? ${count} transaction${count === 1 ? ' uses' : 's use'} it. They keep this name; it just won't be offered for new entries.` : `Delete ${d.listDelete} “${d.name}”?`;
+      if (confirm(message)) commit(s => { const key = d.listDelete === 'category' ? 'categories' : 'descriptions'; s[key] = s[key].filter(name => name !== d.name); });
     }
   });
   $('#syncButton').onclick = () => void syncCloud();

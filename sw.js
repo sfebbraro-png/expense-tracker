@@ -1,4 +1,4 @@
-const CACHE = 'expense-tracker-v25';
+const CACHE = 'expense-tracker-v26';
 const ASSETS = ['./', './index.html', './styles.css?v=25', './enhancements.css?v=25', './core.js?v=25', './recovery.js?v=25', './sync.js?v=25', './supabase-config.js?v=25', './app.js?v=25', './manifest.webmanifest?v=25', './icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
